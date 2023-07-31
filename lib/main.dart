@@ -39,6 +39,7 @@ class MyApp extends StatelessWidget {
     );
   }
 }
+
 class SplashScreen extends StatefulWidget {
   const SplashScreen();
 
@@ -50,7 +51,7 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
-    Timer(const Duration(seconds: 10), () {
+    Future.delayed(const Duration(seconds: 15), () {
       Navigator.of(context).pushReplacementNamed('/signin');
     });
   }
@@ -67,11 +68,13 @@ class _SplashScreenState extends State<SplashScreen> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Transform.scale(
-                scale: 0.3, // adjust the scale factor here
-                child: Image.asset(
-                  "assets/images/img.png",
-                  fit: BoxFit.cover,
+              Expanded(
+                child: Transform.scale(
+                  scale: 0.5,
+                  child: Image.asset(
+                    "assets/images/Schoolfi.png",
+                    fit: BoxFit.cover,
+                  ),
                 ),
               ),
               const SizedBox(height: 20),
