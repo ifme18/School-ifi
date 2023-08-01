@@ -1,5 +1,7 @@
 name: school_ifi
-description: A new Flutter project.
+description: This is a multiple school management platform where various schools entrust us to keepand transform theirdata to meaningful insights
+  we take data inform of exams,fees statement and an AI assistant teacher designed to help students in their studies
+  A student can be assisted in their assignment and be given question a topic tought by the the AI.
 
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
