@@ -82,7 +82,7 @@ class _EventUploaderScreenState extends State<EventUploaderScreen> {
   }
 
   @override
-  void dispose() {
+  void dispose(){
     _classNameController.dispose();
     _eventTitleController.dispose();
     _eventDescriptionController.dispose();
