@@ -1,88 +1,190 @@
-/**
- * Import function triggers from their respective submodules:
- *
- * import {onCall} from "firebase-functions/v2/https";
- * import {onDocumentWritten} from "firebase-functions/v2/firestore";
- *
- * See a full list of supported triggers at https://firebase.google.com/docs/functions
- */
-
-import {onRequest} from "firebase-functions/v2/https";
-import * as logger from "firebase-functions/logger";
-
-// Start writing functions
-// https://firebase.google.com/docs/functions/typescript
-
-// export const helloWorld = onRequest((request, response) => {
-//   logger.info("Hello logs!", {structuredData: true});
-//   response.send("Hello from Firebase!");
-// });
-// index.ts
-
-import * as functions from 'firebase-functions';
-import * as admin from 'firebase-admin';
+import * as functions from "firebase-functions";
+import * as admin from "firebase-admin";
 admin.initializeApp();
 
-exports.login = functions.https.onCall(async (data, context) => {
-  // Check if the user is authenticated
-  if (!context.auth) {
-    throw new functions.https.HttpsError('unauthenticated', 'User not authenticated.');
-  }
-
-  const { role } = data;
+exports.registerAdmin = functions.https.onCall(async (data) => {
+  const {email, name, schoolId, password} = data;
 
   try {
-    const user = context.auth;
-    const idTokenResult = await user.getIdTokenResult();
-
-    // Check if the user has the correct role
-    const customClaims = idTokenResult.claims;
-    if (customClaims && customClaims.role === role) {
-      // User has the correct role, return success
-      return { status: 'success', role };
-    } else {
-      // User does not have the correct role, return an error
-      throw new functions.https.HttpsError('permission-denied', 'Invalid credentials or role.');
-    }
-  } catch (error) {
-    // Handle errors during login
-    console.error('Error logging in:', error);
-    throw new functions.https.HttpsError('internal', 'An error occurred during login.');
-  }
-});
-
-exports.registerAdmin = functions.https.onCall(async (data, context) => {
-  // Check if the user is authenticated as an admin
-  if (!context.auth || !context.auth.token.role === 'admin') {
-    throw new functions.https.HttpsError('unauthenticated', 'User not authenticated as admin.');
-  }
-
-  const { email, name, schoolName, password } = data;
-
-  try {
-    // Create a new Firebase user with the admin role custom claim
     const userCredential = await admin.auth().createUser({
       email,
       password,
     });
 
-    const user = userCredential.user;
-    await user.getIdToken(true);
-    await user.updateProfile({ displayName: name });
+    const user = userCredential;
+    await admin.auth().setCustomUserClaims(user.uid, {role: "admin"});
 
-    // Add custom claim for admin role
-    await admin.auth().setCustomUserClaims(user.uid, { role: 'admin' });
-
-    // Additional custom properties for admin
-    await admin.firestore().collection('admins').doc(user.uid).set({
+    await admin.firestore().collection("admins").doc(user.uid).set({
       name,
-      schoolName,
+      schoolId,
     });
 
-    return { status: 'success' };
+    return {status: "success"};
   } catch (error) {
-    // Handle errors during registration
-    console.error('Error registering:', error);
-    throw new functions.https.HttpsError('internal', 'An error occurred during registration.');
+    console.error("Error registering:", error);
+    throw new functions.https.HttpsError(
+      "internal", "An error occurred during registration."
+    );
+  }
+});
+
+exports.registerTeacher = functions.https.onCall(async (data, context) => {
+  const {email, phoneNumber, name, schoolId, password, imageUrl, tscNumber} = data;
+
+  try {
+    // Create user with email and password or phone number
+    let userCredential;
+    if (email && phoneNumber) {
+      userCredential = await admin.auth().createUser({
+        email,
+        password,
+        phoneNumber,
+      });
+    } else if (email) {
+      userCredential = await admin.auth().createUser({
+        email,
+        password,
+      });
+    } else if (phoneNumber) {
+      userCredential = await admin.auth().createUser({
+        phoneNumber,
+      });
+    } else {
+      throw new functions.https.HttpsError(
+        "invalid-argument",
+        "Either email or phone number is required."
+      );
+    }
+
+    // Set custom user claim for role as teacher
+    await admin.auth().setCustomUserClaims(userCredential.user.uid, {role: "teacher"});
+
+    // Store teacher details in Firestore
+    await admin.firestore().collection("teachers").doc(userCredential.user.uid).set({
+      name,
+      schoolId,
+      imageUrl,
+      tscNumber,
+      contactInfo: {
+        email: email || null,
+        phoneNumber: phoneNumber || null,
+      },
+    });
+
+    return {status: "success"};
+  } catch (error) {
+    console.error("Error registering:", error);
+    throw new functions.https.HttpsError(
+      "internal",
+      "An error occurred during registration."
+    );
+  }
+});
+
+exports.registerStudent = functions.https.onCall(async (data) => {
+  const {email, phoneNumber, name, regno, schoolId, classId, password} = data;
+
+  try {
+    // Create user with email and password or phone number
+    let userCredential;
+    if (email && phoneNumber) {
+      userCredential = await admin.auth().createUser({
+        email,
+        password,
+        phoneNumber,
+      });
+    } else if (email) {
+      userCredential = await admin.auth().createUser({
+        email,
+        password,
+      });
+    } else if (phoneNumber) {
+      userCredential = await admin.auth().createUser({
+        phoneNumber,
+      });
+    } else {
+      throw new functions.https.HttpsError(
+        "invalid-argument",
+        "Either email or phone number is required."
+      );
+    }
+
+    const user = userCredential.user;
+
+    // Set custom user claim for role as student
+    await admin.auth().setCustomUserClaims(user.uid, {role: "student"});
+
+    // Store student details in Firestore
+    await admin.firestore().collection("students").doc(user.uid).set({
+      name,
+      regno,
+      schoolId,
+      classId,
+      contactInfo: {
+        email: email || null,
+        phoneNumber: phoneNumber || null,
+      },
+    });
+
+    return {status: "success"};
+  } catch (error) {
+    console.error("Error registering:", error);
+    throw new functions.https.HttpsError(
+      "internal",
+      "An error occurred during registration."
+    );
+  }
+});
+
+exports.sendNotificationOnNewEvent = functions.firestore
+  .document('events/{eventId}')
+  .onCreate(async (snapshot, context) => {
+    const newEvent = snapshot.data();
+    const schoolId = newEvent.schoolId;
+
+    // Get the list of device tokens for the given school
+    const querySnapshot = await admin
+      .firestore()
+      .collection('admins')
+      .where('schoolId', '==', schoolId)
+      .get();
+
+    const tokens: string[] = [];
+    querySnapshot.forEach((doc) => {
+      const token = doc.data().fcmToken;
+      if (token) {
+        tokens.push(token);
+      }
+    });
+
+    // Send a notification to all device tokens
+    const payload = {
+      notification: {
+        title: 'New Event',
+        body: `New event "${newEvent.title}" has been created.`,
+      },
+    };
+
+    return admin.messaging().sendToDevice(tokens, payload);
+  });
+
+
+exports.sendWelcomeEmail = functions.https.onCall(async (data, context) => {
+  const email = data.email;
+
+  try {
+    const mailOptions = {
+      from: 'your-email@example.com',
+      to: email,
+      subject: 'Welcome to SchoolIfi',
+      text: 'You have been registered successfully on SchoolIfi.',
+    };
+
+    await admin.messaging().sendEmail(mailOptions);
+    console.log(`Welcome email sent to ${email}`);
+    return { success: true };
+  } catch (error) {
+    console.error('Error sending welcome email:', error);
+    return { success: false, error: error.message };
   }
 });
